@@ -1,0 +1,106 @@
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { Camera, useCameraDevices } from 'react-native-vision-camera';
+import { PermissionsAndroid } from 'react-native';
+import RNFS from 'react-native-fs'; // Import the react-native-fs library
+
+function App(): JSX.Element {
+  const devices = useCameraDevices();
+  const device = devices.back;
+  const camera = useRef<Camera>(null);
+  const videoFilePath = RNFS.ExternalDirectoryPath + '/capturedVideo.mp4'; // Define the path for the saved video
+
+  useEffect(() => {
+    (async () => {
+      // Check camera permissions:
+      const newCameraPermission = await Camera.requestCameraPermission();
+      const newMicrophonePermission = await Camera.requestMicrophonePermission();
+
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Cool Photo App Camera Permission',
+            message: 'Your app needs permission.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          return true;
+        } else {
+          console.log('Camera permission denied');
+          return false;
+        }
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    })();
+  }, []);
+
+  const startRecording = async () => {
+    if (camera.current !== null) {
+      try {
+        await camera.current.startRecording({
+          onRecordingFinished: async (video) => {
+            console.log('Video path:', video.path);
+            // Move the recorded video to your desired path
+            await RNFS.moveFile(video.path, videoFilePath);
+            console.log('Video saved:', videoFilePath);
+          },
+          onRecordingError: (error) => console.error(error),
+        });
+      } catch (error) {
+        console.error('Failed to start recording:', error);
+      }
+    }
+  };
+
+  const stopRecording = async () => {
+    if (camera.current !== null) {
+      await camera.current.stopRecording();
+    }
+  };
+
+  if (device == null) return <ActivityIndicator />;
+  return (
+    <View style={styles.all}>
+      <View style={styles.camera}>
+        <Camera
+          ref={camera}
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={true}
+          video={true}
+          audio={true}
+          zoom={1}
+        />
+        <TouchableOpacity onPress={startRecording} style={styles.captureButton}>
+          <Text style={{ fontSize: 18, marginBottom: 10, color: 'white' }}>Start Recording</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={stopRecording} style={styles.captureButton}>
+          <Text style={{ fontSize: 18, marginBottom: 10, color: 'white' }}>Stop Recording</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  all: {
+    flex: 1,
+  },
+  camera: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  captureButton: {
+    backgroundColor: 'blue',
+    padding: 10,
+    borderRadius: 5,
+  },
+});
+
+export default App;
